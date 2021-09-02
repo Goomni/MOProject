@@ -1,0 +1,56 @@
+#pragma once
+
+//////////////////////////////////////////////////////////////
+// 커스텀 에러코드
+//////////////////////////////////////////////////////////////
+
+namespace GGM
+{
+	enum GGM_ERROR
+	{
+		// 연결 오류
+		TOO_MANY_CONNECTION = 90000,
+		INVALID_SERVER_IP,
+		CONNECT_TIME_OUT,
+		CONNECT_FAILED,
+		ONCONNECTION_REQ_FAILED,
+		STARTUP_FAILED,
+		INDEX_STACK_POP_FAILED,
+
+		// 인증 오류
+		AUTH_FAILED,
+
+		// 세션 동기화 오류 
+		SESSION_SYNC_FAILED,
+		NEGATIVE_IO_COUNT,
+		ALREADY_LOGIN,
+
+		// 버퍼 오류
+		BUFFER_WRITE_FAILED,
+		BUFFER_READ_FAILED,
+		BUFFER_FULL,
+		LOCK_FREE_Q_ENQ_FAILED,
+		LOCK_FREE_Q_DEQ_FAILED,
+
+		// 패킷 데이터 오류
+		WRONG_PACKET_TYPE,
+
+		// 모니터링 오류
+		ADD_COUNTER_FAILED,
+
+		// shdbAPI, 웹 관련 오류 
+		JSON_MEMBER_NOT_FOUND,
+		SHDB_API_SUCCESS = 1,
+		SHDB_API_INVALID_ACCOUNTNO = -10,
+		SHDB_API_DATA_NO_ACCOUNT = -11,
+		SHDB_API_DATA_NO_CONTENTS = -12,
+		SHDB_API_MASTER_CONNECT_FAILED = -50,
+		SHDB_API_SLAVE_CONNECT_FAILED = -51,
+		SHDB_API_DATA_CONNECT_FAILED = -52,
+		SHDB_API_QUERY_FAILED = -60,
+		SHDB_INVALID_COLUMN = -61,
+		SHDB_INVALID_TABLE = -62
+
+	};
+
+}

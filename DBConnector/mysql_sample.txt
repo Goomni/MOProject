@@ -1,0 +1,197 @@
+	MYSQL conn;
+	MYSQL *connection = NULL;
+	MYSQL_RES *sql_result;
+	MYSQL_ROW sql_row;
+	int query_stat;
+
+	// 초기화
+	mysql_init(&conn);
+
+	// DB 연결
+
+	connection = mysql_real_connect(&conn, "127.0.0.1",	"root", "procademy", "test" , 3306, (char *)NULL, 0);
+	if ( connection == NULL )
+	{
+		fprintf(stderr, "Mysql connection error : %s", mysql_error(&conn));
+		return 1;
+	}
+	
+	//한글사용을위해추가.
+	mysql_set_character_set(connection, "utf8");
+
+
+//	mysql_query(connection,"set session character_set_connection=euckr;");
+//	mysql_query(connection,"set session character_set_results=euckr;");
+//	mysql_query(connection,"set session character_set_client=euckr;");
+
+
+	// Select 쿼리문
+	char *query =  "SELECT * FROM account";	// From 다음 DB에 존재하는 테이블 명으로 수정하세요
+	query_stat=mysql_query(connection, query);
+	if (query_stat != 0)
+	{
+		printf("Mysql query error : %s", mysql_error(&conn));
+		return 1;
+	}
+
+	// 결과출력
+	sql_result=mysql_store_result(connection);		// 결과 전체를 미리 가져옴
+//	sql_result=mysql_use_result(connection);		// fetch_row 호출시 1개씩 가져옴
+
+	while((sql_row = mysql_fetch_row(sql_result))!=NULL)
+	{
+		printf("%2s %2s %s\n",sql_row[0],sql_row[1],sql_row[2]);
+	}
+	mysql_free_result(sql_result);
+
+	// DB 연결닫기
+	mysql_close(connection);
+
+#ifndef __PROCADEMY_LIB_DBCONNECTOR__
+#define __PROCADEMY_LIB_DBCONNECTOR__
+
+
+/////////////////////////////////////////////////////////
+// MySQL DB 연결 클래스
+//
+// 단순하게 MySQL Connector 를 통한 DB 연결만 관리한다.
+//
+// 스레드에 안전하지 않으므로 주의 해야 함.
+// 여러 스레드에서 동시에 이를 사용한다면 개판이 됨.
+//
+/////////////////////////////////////////////////////////
+
+namespace procademy
+{
+
+	class CDBConnector
+	{
+	public:
+
+		enum en_DB_CONNECTOR
+		{
+			eQUERY_MAX_LEN	= 2048
+
+		};
+
+					CDBConnector(WCHAR *szDBIP, WCHAR *szUser, WCHAR *szPassword, WCHAR *szDBName, int iDBPort);
+		virtual		~CDBConnector();
+
+		//////////////////////////////////////////////////////////////////////
+		// MySQL DB 연결
+		//////////////////////////////////////////////////////////////////////
+		bool		Connect(void);
+
+		//////////////////////////////////////////////////////////////////////
+		// MySQL DB 끊기
+		//////////////////////////////////////////////////////////////////////
+		bool		Disconnect(void);
+
+
+		//////////////////////////////////////////////////////////////////////
+		// 쿼리 날리고 결과셋 임시 보관
+		//
+		//////////////////////////////////////////////////////////////////////
+		bool		Query(WCHAR *szStringFormat, ...);
+		bool		Query_Save(WCHAR *szStringFormat, ...);	// DBWriter 스레드의 Save 쿼리 전용
+																// 결과셋을 저장하지 않음.
+	
+		//////////////////////////////////////////////////////////////////////
+		// 쿼리를 날린 뒤에 결과 뽑아오기.
+		//
+		// 결과가 없다면 NULL 리턴.
+		//////////////////////////////////////////////////////////////////////
+		MYSQL_ROW	FetchRow(void);
+
+		//////////////////////////////////////////////////////////////////////
+		// 한 쿼리에 대한 결과 모두 사용 후 정리.
+		//////////////////////////////////////////////////////////////////////
+		void		FreeResult(void);
+
+
+		//////////////////////////////////////////////////////////////////////
+		// Error 얻기.한 쿼리에 대한 결과 모두 사용 후 정리.
+		//////////////////////////////////////////////////////////////////////
+		int			GetLastError(void) { return _iLastError; };
+		WCHAR		*GetLastErrorMsg(void) { return _szLastErrorMsg; }
+
+	
+	private:
+
+		//////////////////////////////////////////////////////////////////////
+		// mysql 의 LastError 를 맴버변수로 저장한다.
+		//////////////////////////////////////////////////////////////////////
+		void		SaveLastError(void);
+
+	private:
+
+
+
+		//-------------------------------------------------------------
+		// MySQL 연결객체 본체
+		//-------------------------------------------------------------
+		MYSQL		_MySQL;	
+
+		//-------------------------------------------------------------
+		// MySQL 연결객체 포인터. 위 변수의 포인터임. 
+		// 이 포인터의 null 여부로 연결상태 확인.
+		//-------------------------------------------------------------
+		MYSQL		*_pMySQL;
+
+		//-------------------------------------------------------------
+		// 쿼리를 날린 뒤 Result 저장소.
+		//
+		//-------------------------------------------------------------
+		MYSQL_RES	*_pSqlResult;
+
+		WCHAR		_szDBIP[16];
+		WCHAR		_szDBUser[64];
+		WCHAR		_szDBPassword[64];
+		WCHAR		_szDBName[64];
+		int			_iDBPort;
+
+
+		WCHAR		_szQuery[eQUERY_MAX_LEN];
+		char		_szQueryUTF8[eQUERY_MAX_LEN];
+
+		int			_iLastError;
+		WCHAR		_szLastErrorMsg[128];
+
+	};
+}
+
+
+#endif
+
+
+
+Stateful Native 서버에서는 컨넥션 풀 같은거 없이
+연결된 MySQL 객체를 계속 사용하여 DB 를 연동 함.
+
+다만 연결이 끊어졌다는 판단이 될 경우
+재연결을 일정 횟수 시도한 뒤에 포기 하는 방식을 쓰겠음.
+
+#include "mysql/include/errmsg.h"
+
+mysql_errno(&_MySQL);
+
+CR_SOCKET_CREATE_ERROR
+CR_CONNECTION_ERROR
+CR_CONN_HOST_ERROR
+CR_SERVER_GONE_ERROR
+CR_SERVER_HANDSHAKE_ERR
+CR_SERVER_LOST
+CR_INVALID_CONN_HANDLE
+
+
+위 에러들은 소켓,연결 관련 에러로서 연결중/연결끊김 등의
+상황에 발생한다. 몇몇 에러는 connect 시에 발생하는 에러도 있으나
+혹시 모르므로 연결관련 에러는 모두 체크 해보겠음
+
+- 쿼리를 날림 : 에러발생
+- 연결 에러라면 재연결 시도
+- 연결 성공시 쿼리 날림
+- 연결 실패시 재연결 시도
+- 일정횟수 실패시 서버 종료
+
+
